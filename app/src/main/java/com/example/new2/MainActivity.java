@@ -1,19 +1,30 @@
 package com.example.new2;
 
+import android.animation.Animator;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewAnimationUtils;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.mikepenz.fastadapter.FastAdapter;
+import com.mikepenz.fastadapter.IAdapter;
 import com.mikepenz.fastadapter.commons.adapters.FastItemAdapter;
+import com.mikepenz.fastadapter.listeners.OnClickListener;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -25,6 +36,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
     RecyclerView recyclerView;
 
     private FastAdapter fastAdapter;
+    LayoutInflater layoutInflater;
     String command = " pm list packages | grep -v com.google.* | grep -v com.android.* | grep -v  com.quic.*";
 
     private class Startup extends AsyncTask<String, Void, Void> {
@@ -103,6 +115,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
                 }
             }
 
+
             callback.rootCallback(sb.toString(), packages);
         }
     }
@@ -124,13 +137,19 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
     public void rootCallback(String text, List<String> packages) {
 
         List<SimpleItem> items = new ArrayList<>();
+        String command = "";
 
         for (String x : packages) {
             SimpleItem item = new SimpleItem(x);
             items.add(item);
+
+            //Show perms for each pkg
+
         }
 
         setRecyclerViewAdapter(items);
+
+
 
 
     }
@@ -156,10 +175,88 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         FastItemAdapter<SimpleItem> fastAdapter = new FastItemAdapter<>();
         recyclerView.setAdapter(fastAdapter);
         fastAdapter.add(ITEMS);
+        fastAdapter.withSelectable(true);
+        fastAdapter.withOnClickListener(new OnClickListener<SimpleItem>() {
+            @Override
+            public boolean onClick(@Nullable View v, IAdapter<SimpleItem> adapter, SimpleItem item, int position) {
+                List<String> permissionList = new ArrayList<>();
+                permissionList = getPerms(MainActivity.this, item.name);
+
+                    Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
+                    showPermDialog(permissionList);
+
+                return false;
+            }
+        });
 
 //set our adapters to the RecyclerView
         recyclerView.setAdapter(fastAdapter);
 
-//set the items to your ItemAdapter
+    }
+
+    private void showPermDialog(final List<String> permissionList) {
+
+        layoutInflater = MainActivity.this.getLayoutInflater();
+        final View content = layoutInflater.inflate(R.layout.dialog_layout, null, false);
+
+        final TextView permissionText = content.findViewById(R.id.permissionList);
+
+        String permText = "";
+//        StringBuilder sb = new StringBuilder();
+
+        for(String x : permissionList){
+             permText += x + "\n";
+        }
+        permissionText.setText(permText);
+
+
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this)
+                .setView(content)
+        ;
+
+
+        AlertDialog dialog = builder.create();
+        // get the center for the clipping circle
+
+        final View view = dialog.getWindow().getDecorView();
+
+        view.post(new Runnable() {
+            @Override
+            public void run() {
+                final int centerX = view.getWidth() / 2;
+                final int centerY = view.getHeight() / 2;
+                // TODO Get startRadius from FAB
+                // TODO Also translate animate FAB to center of screen?
+                float startRadius = 20;
+                float endRadius = view.getHeight();
+                Animator animator = ViewAnimationUtils.createCircularReveal(view, centerX, centerY, startRadius, endRadius);
+                animator.setDuration(500);
+                animator.start();
+            }
+        });
+
+        dialog.show();
+    }
+
+    List<String> getPerms(Context context, String packageName){
+        PackageManager p = context.getPackageManager();
+        final List<PackageInfo> appinstall = p.getInstalledPackages(PackageManager.GET_PERMISSIONS);
+        List<String> permissionList = new ArrayList<>();
+
+        try {
+            PackageInfo info = p.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
+            if (info.requestedPermissions != null) {
+                for (String x : info.requestedPermissions) {
+                    permissionList.add(x);
+                }
+            }
+            else
+                Toast.makeText(context, "No perms granted for this app", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return permissionList;
     }
 }
