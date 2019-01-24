@@ -182,8 +182,15 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
                 List<String> permissionList = new ArrayList<>();
                 permissionList = getPerms(MainActivity.this, item.name);
 
+                if(!(permissionList.size() == 0 || permissionList == null)) {
                     Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
                     showPermDialog(permissionList);
+                }
+                else {
+                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
+                }
+
+
 
                 return false;
             }
@@ -215,28 +222,29 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
                 .setView(content)
         ;
 
+            AlertDialog dialog = builder.create();
+            // get the center for the clipping circle
 
-        AlertDialog dialog = builder.create();
-        // get the center for the clipping circle
+            final View view = dialog.getWindow().getDecorView();
 
-        final View view = dialog.getWindow().getDecorView();
+            view.post(new Runnable() {
+                @Override
+                public void run() {
+                    final int centerX = view.getWidth() / 2;
+                    final int centerY = view.getHeight() / 2;
+                    // TODO Get startRadius from FAB
+                    // TODO Also translate animate FAB to center of screen?
+                    float startRadius = 20;
+                    float endRadius = view.getHeight();
+                    Animator animator = ViewAnimationUtils.createCircularReveal(view, centerX, centerY, startRadius, endRadius);
+                    animator.setDuration(500);
+                    animator.start();
+                }
+            });
 
-        view.post(new Runnable() {
-            @Override
-            public void run() {
-                final int centerX = view.getWidth() / 2;
-                final int centerY = view.getHeight() / 2;
-                // TODO Get startRadius from FAB
-                // TODO Also translate animate FAB to center of screen?
-                float startRadius = 20;
-                float endRadius = view.getHeight();
-                Animator animator = ViewAnimationUtils.createCircularReveal(view, centerX, centerY, startRadius, endRadius);
-                animator.setDuration(500);
-                animator.start();
-            }
-        });
+            dialog.show();
 
-        dialog.show();
+
     }
 
     List<String> getPerms(Context context, String packageName){
@@ -249,10 +257,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             if (info.requestedPermissions != null) {
                 for (String x : info.requestedPermissions) {
                     permissionList.add(x);
+                    Log.d(TAG, "getPerms: " + x);
                 }
             }
-            else
-                Toast.makeText(context, "No perms granted for this app", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
         }
