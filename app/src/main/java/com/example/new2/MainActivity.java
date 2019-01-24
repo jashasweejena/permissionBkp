@@ -39,6 +39,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
     LayoutInflater layoutInflater;
     String command = " pm list packages | grep -v com.google.* | grep -v com.android.* | grep -v  com.quic.*";
 
+    private List<String> packageNames = new ArrayList<>();
+
+
     private class Startup extends AsyncTask<String, Void, Void> {
         private ProgressDialog dialog = null;
         private Context context = null;
@@ -48,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         private String suVersionInternal = null;
         private List<String> suResult = null;
         private StartupCallback callback = null;
+
 
         public Startup setContext(Context context) {
             this.context = context;
@@ -116,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             }
 
 
-            callback.rootCallback(sb.toString(), packages);
+            callback.rootCallback(sb.toString());
         }
     }
 
@@ -127,19 +131,19 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
         recyclerView = findViewById(R.id.recycler);
 
-        //Background stuff
-        new Startup().setContext(this).setListener(this).execute(command);
+        final PackageManager pm = getPackageManager();
+//get a list of installed apps.
+        List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
 
+        for(ApplicationInfo x : packages){
+            packageNames.add(x.packageName);
+        }
 
-    }
-
-    @Override
-    public void rootCallback(String text, List<String> packages) {
 
         List<SimpleItem> items = new ArrayList<>();
         String command = "";
 
-        for (String x : packages) {
+        for (String x : packageNames) {
             SimpleItem item = new SimpleItem(x);
             items.add(item);
 
@@ -150,7 +154,10 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         setRecyclerViewAdapter(items);
 
 
+    }
 
+    @Override
+    public void rootCallback(String text) {
 
     }
 
@@ -180,7 +187,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             @Override
             public boolean onClick(@Nullable View v, IAdapter<SimpleItem> adapter, SimpleItem item, int position) {
                 List<String> permissionList = new ArrayList<>();
-                permissionList = getPerms(MainActivity.this, item.name);
+                permissionList = getPermsFromPackage(MainActivity.this, item.name);
 
                 if(!(permissionList.size() == 0 || permissionList == null)) {
                     Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
@@ -247,9 +254,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
     }
 
-    List<String> getPerms(Context context, String packageName){
+    List<String> getPermsFromPackage(Context context, String packageName){
         PackageManager p = context.getPackageManager();
-        final List<PackageInfo> appinstall = p.getInstalledPackages(PackageManager.GET_PERMISSIONS);
+        List<ApplicationInfo> packages = p.getInstalledApplications(PackageManager.GET_META_DATA);
         List<String> permissionList = new ArrayList<>();
 
         try {
@@ -257,7 +264,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             if (info.requestedPermissions != null) {
                 for (String x : info.requestedPermissions) {
                     permissionList.add(x);
-                    Log.d(TAG, "getPerms: " + x);
+                    Log.d(TAG, "getPermsFromPackage: " + x);
                 }
             }
         } catch (Exception e) {
