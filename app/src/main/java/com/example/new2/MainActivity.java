@@ -4,16 +4,15 @@ import android.animation.Animator;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewAnimationUtils;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.mikepenz.fastadapter.FastAdapter;
 import com.mikepenz.fastadapter.IAdapter;
@@ -113,9 +112,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
                     append((char) 10);
             if (suResult != null) {
                 for (String line : suResult) {
-                    String x = line.substring(("package").length() + 1);
-                    packages.add(x);
-                    sb.append(x).append((char) 10);
+                    sb.append(line).append((char) 10);
                 }
             }
 
@@ -158,7 +155,10 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
     @Override
     public void rootCallback(String text) {
-
+        List<String> x = new ArrayList<>();
+        x.add(text);
+        showPermDialog(x);
+        Log.d(TAG, "rootCallback: " + x);
     }
 
     List<ApplicationInfo> getPackageNames() {
@@ -186,17 +186,19 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         fastAdapter.withOnClickListener(new OnClickListener<SimpleItem>() {
             @Override
             public boolean onClick(@Nullable View v, IAdapter<SimpleItem> adapter, SimpleItem item, int position) {
-                List<String> permissionList = new ArrayList<>();
-                permissionList = getPermsFromPackage(MainActivity.this, item.name);
+//                List<String> permissionList = new ArrayList<>();
+////                permissionList = getPermsFromPackage(MainActivity.this, item.name);
+//
+//
+//                if(!(permissionList.size() == 0 || permissionList == null)) {
+//                    Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
+//                    showPermDialog(permissionList);
+//                }
+//                else {
+//                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
+//                }
 
-                if(!(permissionList.size() == 0 || permissionList == null)) {
-                    Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
-                    showPermDialog(permissionList);
-                }
-                else {
-                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
-                }
-
+                getPermsFromPackage(MainActivity.this, item.name);
 
 
                 return false;
@@ -222,6 +224,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
              permText += x + "\n";
         }
         permissionText.setText(permText);
+        permissionText.setMovementMethod(new ScrollingMovementMethod());
 
 
 
@@ -254,23 +257,28 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
     }
 
-    List<String> getPermsFromPackage(Context context, String packageName){
-        PackageManager p = context.getPackageManager();
-        List<ApplicationInfo> packages = p.getInstalledApplications(PackageManager.GET_META_DATA);
-        List<String> permissionList = new ArrayList<>();
+    void getPermsFromPackage(Context context, String packageName){
+//        PackageManager p = context.getPackageManager();
+//        List<ApplicationInfo> packages = p.getInstalledApplications(PackageManager.GET_META_DATA);
+//        List<String> permissionList = new ArrayList<>();
+//
+//        try {
+//            PackageInfo info = p.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
+//            if (info.requestedPermissions != null) {
+//                for (String x : info.requestedPermissions) {
+//                    permissionList.add(x);
+//                    Log.d(TAG, "getPermsFromPackage: " + x);
+//                }
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+        String command = "dumpsys package " + packageName +" | grep -i granted=";
 
-        try {
-            PackageInfo info = p.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
-            if (info.requestedPermissions != null) {
-                for (String x : info.requestedPermissions) {
-                    permissionList.add(x);
-                    Log.d(TAG, "getPermsFromPackage: " + x);
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        callAsync(command);
 
-        return permissionList;
+    }
+    void callAsync(String... command){
+        new Startup().setContext(MainActivity.this).setListener(MainActivity.this).execute(command);
     }
 }
