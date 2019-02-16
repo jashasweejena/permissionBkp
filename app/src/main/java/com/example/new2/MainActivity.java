@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -39,6 +40,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
     String command = " pm list packages | grep -v com.google.* | grep -v com.android.* | grep -v  com.quic.*";
 
     private List<String> packageNames = new ArrayList<>();
+
+    private List<String> finalPackageNames = new ArrayList<>();
+    private List<String> finalPermissionList = new ArrayList<>();
 
 
     private class Startup extends AsyncTask<String, Void, Void> {
@@ -92,7 +96,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             // This is just so you see we had a progress dialog,
             // don't do this in production code
             try {
-                Thread.sleep(1000);
+                Thread.sleep(200);
             } catch (Exception e) {
             }
 
@@ -101,7 +105,6 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
         @Override
         protected void onPostExecute(Void result) {
-            List<String> packages = new ArrayList<>();
             dialog.dismiss();
 
             // output
@@ -117,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
             }
 
 
-            callback.rootCallback(sb.toString());
+            callback.rootCallback(sb.toString(), suResult);
         }
     }
 
@@ -132,8 +135,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 //get a list of installed apps.
         List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
 
-        for(ApplicationInfo x : packages){
+        for (ApplicationInfo x : packages) {
             packageNames.add(x.packageName);
+
         }
 
 
@@ -149,16 +153,14 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         }
 
         setRecyclerViewAdapter(items);
-
-
     }
 
     @Override
-    public void rootCallback(String text) {
-        List<String> x = new ArrayList<>();
-        x.add(text);
-        showPermDialog(x);
-        Log.d(TAG, "rootCallback: " + x);
+    public void rootCallback(String text, List<String> outputList) {
+//        showPermDialog(outputList);
+        this.finalPermissionList.add(text);
+//        getPermList(text);
+        Log.d(TAG, "rootCallback: Perm list size " + outputList.size() + "Package list size " + this.packageNames.size());
     }
 
     List<ApplicationInfo> getPackageNames() {
@@ -198,7 +200,8 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 //                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
 //                }
 
-                getPermsFromPackage(MainActivity.this, item.name);
+                getPermsFromPackage(item.name);
+                showPermDialog(null, item.name);
 
 
                 return false;
@@ -210,7 +213,7 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
     }
 
-    private void showPermDialog(final List<String> permissionList) {
+    private void showPermDialog(@Nullable  final List<String> permissionList, String packageName) {
 
         layoutInflater = MainActivity.this.getLayoutInflater();
         final View content = layoutInflater.inflate(R.layout.dialog_layout, null, false);
@@ -218,67 +221,72 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         final TextView permissionText = content.findViewById(R.id.permissionList);
 
         String permText = "";
-//        StringBuilder sb = new StringBuilder();
 
-        for(String x : permissionList){
-             permText += x + "\n";
+//        for (String x : permissionList) {
+//            permText += x + "\n";
+//        }
+
+        List<String> x = getGrantedPermissions(packageName);
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0 ; i < x.size() ; i ++){
+            if(x.get(i).contains("android.permission")) {
+                sb.append(x.get(i) + (char) 10);
+            }
         }
+        permText = sb.toString();
         permissionText.setText(permText);
         permissionText.setMovementMethod(new ScrollingMovementMethod());
 
 
-
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this)
-                .setView(content)
-        ;
+                .setView(content);
 
-            AlertDialog dialog = builder.create();
-            // get the center for the clipping circle
+        AlertDialog dialog = builder.create();
+        // get the center for the clipping circle
 
-            final View view = dialog.getWindow().getDecorView();
+        final View view = dialog.getWindow().getDecorView();
 
-            view.post(new Runnable() {
-                @Override
-                public void run() {
-                    final int centerX = view.getWidth() / 2;
-                    final int centerY = view.getHeight() / 2;
-                    // TODO Get startRadius from FAB
-                    // TODO Also translate animate FAB to center of screen?
-                    float startRadius = 20;
-                    float endRadius = view.getHeight();
-                    Animator animator = ViewAnimationUtils.createCircularReveal(view, centerX, centerY, startRadius, endRadius);
-                    animator.setDuration(500);
-                    animator.start();
-                }
-            });
+        view.post(new Runnable() {
+            @Override
+            public void run() {
+                final int centerX = view.getWidth() / 2;
+                final int centerY = view.getHeight() / 2;
+                // TODO Get startRadius from FAB
+                // TODO Also translate animate FAB to center of screen?
+                float startRadius = 20;
+                float endRadius = view.getHeight();
+                Animator animator = ViewAnimationUtils.createCircularReveal(view, centerX, centerY, startRadius, endRadius);
+                animator.setDuration(500);
+                animator.start();
+            }
+        });
 
-            dialog.show();
+        dialog.show();
 
 
     }
 
-    void getPermsFromPackage(Context context, String packageName){
-//        PackageManager p = context.getPackageManager();
-//        List<ApplicationInfo> packages = p.getInstalledApplications(PackageManager.GET_META_DATA);
-//        List<String> permissionList = new ArrayList<>();
-//
-//        try {
-//            PackageInfo info = p.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
-//            if (info.requestedPermissions != null) {
-//                for (String x : info.requestedPermissions) {
-//                    permissionList.add(x);
-//                    Log.d(TAG, "getPermsFromPackage: " + x);
-//                }
-//            }
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-        String command = "dumpsys package " + packageName +" | grep -i granted=";
-
+    void getPermsFromPackage(String packageName) {
+//        String command = "dumpsys package " + packageName + " | grep -i granted=";
+        String command = "dumpsys package " + packageName;
         callAsync(command);
-
     }
-    void callAsync(String... command){
+
+    void callAsync(String... command) {
         new Startup().setContext(MainActivity.this).setListener(MainActivity.this).execute(command);
+    }
+
+    List<String> getGrantedPermissions(final String appPackage) {
+        List<String> granted = new ArrayList<String>();
+        try {
+            PackageInfo pi = getPackageManager().getPackageInfo(appPackage, PackageManager.GET_PERMISSIONS);
+            for (int i = 0; i < pi.requestedPermissions.length; i++) {
+                if ((pi.requestedPermissionsFlags[i] & PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0) {
+                    granted.add(pi.requestedPermissions[i]);
+                }
+            }
+        } catch (Exception e) {
+        }
+        return granted;
     }
 }
