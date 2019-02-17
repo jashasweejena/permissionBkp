@@ -33,6 +33,14 @@ dependencies {
     implementation "com.mikepenz:materialize:${latestVersion}" // at least 1.2.0
     implementation 'com.jakewharton:butterknife:10.0.0'
     annotationProcessor 'com.jakewharton:butterknife-compiler:10.0.0'
+
+    implementation "com.mikepenz:iconics-core:3.2.1"
+    implementation "androidx.appcompat:appcompat:${androidX}"
+    implementation "com.mikepenz:iconics-views:3.2.1"
+    implementation 'com.mikepenz:google-material-typeface:3.0.1.3.original@aar'
+    implementation 'com.mikepenz:material-design-iconic-typeface:2.2.0.5@aar'
+    implementation 'androidx.recyclerview:recyclerview:1.0.0'
+
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test:runner:1.1.0-alpha4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.0-alpha4'

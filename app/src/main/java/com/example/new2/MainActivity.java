@@ -6,19 +6,30 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewAnimationUtils;
 import android.widget.TextView;
 
+import com.example.new2.Helpers.ItemTouchCallback;
+import com.example.new2.Helpers.SimpleDragCallback;
 import com.mikepenz.fastadapter.FastAdapter;
 import com.mikepenz.fastadapter.IAdapter;
-import com.mikepenz.fastadapter.commons.adapters.FastItemAdapter;
+import com.mikepenz.fastadapter.IItemAdapter;
+import com.mikepenz.fastadapter.adapters.ItemAdapter;
+import com.mikepenz.fastadapter.listeners.ItemFilterListener;
 import com.mikepenz.fastadapter.listeners.OnClickListener;
+import com.mikepenz.iconics.IconicsDrawable;
+import com.mikepenz.material_design_iconic_typeface_library.MaterialDesignIconic;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,16 +37,16 @@ import java.util.List;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import eu.chainfire.libsuperuser.Shell;
 
-public class MainActivity extends AppCompatActivity implements StartupCallback {
+public class MainActivity extends AppCompatActivity implements  ItemTouchCallback, StartupCallback, ItemFilterListener<SimpleItem> {
 
     private static String TAG = MainActivity.class.getSimpleName();
     RecyclerView recyclerView;
-
-    private FastAdapter fastAdapter;
     LayoutInflater layoutInflater;
     String command = " pm list packages | grep -v com.google.* | grep -v com.android.* | grep -v  com.quic.*";
 
@@ -43,6 +54,31 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
     private List<String> finalPackageNames = new ArrayList<>();
     private List<String> finalPermissionList = new ArrayList<>();
+    private FastAdapter<SimpleItem> fastAdapter;
+    private ItemAdapter<SimpleItem> itemAdapter;
+    private SimpleDragCallback touchCallback;
+    private ItemTouchHelper touchHelper;
+
+
+    @Override
+    public void itemsFiltered(@Nullable CharSequence constraint, @Nullable List<SimpleItem> results) {
+
+    }
+
+    @Override
+    public void onReset() {
+
+    }
+
+    @Override
+    public boolean itemTouchOnMove(int oldPosition, int newPosition) {
+        return false;
+    }
+
+    @Override
+    public void itemTouchDropped(int oldPosition, int newPosition) {
+
+    }
 
 
     private class Startup extends AsyncTask<String, Void, Void> {
@@ -131,6 +167,9 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
         recyclerView = findViewById(R.id.recycler);
 
+        touchCallback = new SimpleDragCallback(MainActivity.this);
+        touchHelper = new ItemTouchHelper(touchCallback); // Create ItemTouchHelper and pass with parameter the SimpleDragCallback
+
         final PackageManager pm = getPackageManager();
 //get a list of installed apps.
         List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
@@ -153,6 +192,37 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
         }
 
         setRecyclerViewAdapter(items);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.search, menu);
+
+        menu.findItem(R.id.search).setIcon(new IconicsDrawable(this, MaterialDesignIconic.Icon.gmi_search).color(Color.BLACK).actionBar());
+
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            final SearchView searchView = (SearchView) menu.findItem(R.id.search).getActionView();
+            searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                @Override
+                public boolean onQueryTextSubmit(String s) {
+                    touchCallback.setIsDragEnabled(false);
+                    itemAdapter.filter(s);
+                    return true;
+                }
+
+
+                @Override
+                public boolean onQueryTextChange(String s) {
+                    itemAdapter.filter(s);
+                    touchCallback.setIsDragEnabled(TextUtils.isEmpty(s));
+                    return true;
+                }
+            });
+        } else {
+            menu.findItem(R.id.search).setVisible(false);
+        }
+        return true;
     }
 
     @Override
@@ -181,9 +251,10 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this, RecyclerView.VERTICAL, false));
 
-        FastItemAdapter<SimpleItem> fastAdapter = new FastItemAdapter<>();
+        itemAdapter = ItemAdapter.items();
+        itemAdapter.add(ITEMS);
+        fastAdapter = FastAdapter.with(itemAdapter);
         recyclerView.setAdapter(fastAdapter);
-        fastAdapter.add(ITEMS);
         fastAdapter.withSelectable(true);
         fastAdapter.withOnClickListener(new OnClickListener<SimpleItem>() {
             @Override
@@ -200,6 +271,8 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
 //                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
 //                }
 
+                touchHelper.attachToRecyclerView(recyclerView); // Attach ItemTouchHelper to RecyclerView
+
                 getPermsFromPackage(item.name);
                 showPermDialog(null, item.name);
 
@@ -207,6 +280,19 @@ public class MainActivity extends AppCompatActivity implements StartupCallback {
                 return false;
             }
         });
+
+
+        //configure the itemAdapter
+        itemAdapter.getItemFilter().withFilterPredicate(new IItemAdapter.Predicate<SimpleItem>() {
+            @Override
+            public boolean filter(SimpleItem item, CharSequence constraint) {
+                //return true if we should filter it out
+                //return false to keep it
+                return item.name.toLowerCase().contains(constraint.toString().toLowerCase());
+            }
+        });
+
+        itemAdapter.getItemFilter().withItemFilterListener(this);
 
 //set our adapters to the RecyclerView
         recyclerView.setAdapter(fastAdapter);
