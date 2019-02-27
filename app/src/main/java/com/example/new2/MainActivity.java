@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
         private String suVersion = null;
 
         private String suVersionInternal = null;
-        private List<String> suResult = null;
+        private List<String> suResult = new ArrayList<>();
         private StartupCallback callback = null;
 
 
@@ -131,10 +131,10 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
 
             // This is just so you see we had a progress dialog,
             // don't do this in production code
-            try {
-                Thread.sleep(200);
-            } catch (Exception e) {
-            }
+//            try {
+//                Thread.sleep(200);
+//            } catch (Exception e) {
+//            }
 
             return null;
         }
@@ -276,6 +276,8 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
                 getPermsFromPackage(item.name);
                 showPermDialog(null, item.name);
 
+                String command = "pm grant " + item.name + " android.permission.WRITE_EXTERNAL_STORAGE";
+                callAsync(command);
 
                 return false;
             }
