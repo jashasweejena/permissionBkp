@@ -19,6 +19,7 @@ import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewAnimationUtils;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.example.new2.Helpers.ItemTouchCallback;
 import com.example.new2.Helpers.SimpleDragCallback;
@@ -31,6 +32,13 @@ import com.mikepenz.fastadapter.listeners.OnClickListener;
 import com.mikepenz.iconics.IconicsDrawable;
 import com.mikepenz.material_design_iconic_typeface_library.MaterialDesignIconic;
 
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.DatagramSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -83,23 +91,18 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
 
     private class Startup extends AsyncTask<String, Void, Void> {
         private ProgressDialog dialog = null;
-        private Context context = null;
+        private Context context;
         private boolean suAvailable = false;
         private String suVersion = null;
 
         private String suVersionInternal = null;
         private List<String> suResult = new ArrayList<>();
-        private StartupCallback callback = null;
+        private StartupCallback callback;
 
 
-        public Startup setContext(Context context) {
-            this.context = context;
-            return this;
-        }
-
-        public Startup setListener(StartupCallback callback) {
+        Startup(StartupCallback callback){
             this.callback = callback;
-            return this;
+            context = (MainActivity)callback;
         }
 
         @Override
@@ -123,18 +126,11 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
             if (suAvailable) {
                 suVersion = Shell.SU.version(false);
                 suVersionInternal = Shell.SU.version(true);
-                suResult = Shell.SU.run(new String[]{
+                suResult = Shell.SU.run(new String[]{"su",
                         params[0]
 
                 });
             }
-
-            // This is just so you see we had a progress dialog,
-            // don't do this in production code
-//            try {
-//                Thread.sleep(200);
-//            } catch (Exception e) {
-//            }
 
             return null;
         }
@@ -157,6 +153,12 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
 
 
             callback.rootCallback(sb.toString(), suResult);
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            super.onProgressUpdate(values);
+            Log.d(TAG, "onProgressUpdate: " + "Command execution going on ");
         }
     }
 
@@ -259,25 +261,25 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
         fastAdapter.withOnClickListener(new OnClickListener<SimpleItem>() {
             @Override
             public boolean onClick(@Nullable View v, IAdapter<SimpleItem> adapter, SimpleItem item, int position) {
-//                List<String> permissionList = new ArrayList<>();
-////                permissionList = getPermsFromPackage(MainActivity.this, item.name);
-//
-//
-//                if(!(permissionList.size() == 0 || permissionList == null)) {
-//                    Toast.makeText(MainActivity.this, permissionList.toString(), Toast.LENGTH_SHORT).show();
-//                    showPermDialog(permissionList);
-//                }
-//                else {
-//                    Toast.makeText(MainActivity.this, "No perms set for this app", Toast.LENGTH_SHORT).show();
-//                }
 
                 touchHelper.attachToRecyclerView(recyclerView); // Attach ItemTouchHelper to RecyclerView
 
-                getPermsFromPackage(item.name);
-                showPermDialog(null, item.name);
+//                showPermDialog(null, item.name);
 
-                String command = "pm grant " + item.name + " android.permission.WRITE_EXTERNAL_STORAGE";
-                callAsync(command);
+                String command = "dumpsys package org.thunderdog.challegram | grep android.permission";
+                Log.d(TAG, "onClick: " + command);
+                String res = sudoForResult(command);
+                Log.d(TAG, "dumpsys: " + res);
+//                Toast.makeText(MainActivity.this, res, Toast.LENGTH_LONG).show();
+                String[] dumpsysPermission = res.split("\\n");
+                Log.d(TAG, "dumpsys: " + dumpsysPermission.length);
+                Toast.makeText(MainActivity.this, res + "\n " + dumpsysPermission.length, Toast.LENGTH_LONG).show();
+
+                for(String permission : dumpsysPermission){
+                    sudoForResult("pm grant " + item.name + " " + permission);
+                }
+//                callAsync(command);
+
 
                 return false;
             }
@@ -357,11 +359,12 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
     void getPermsFromPackage(String packageName) {
 //        String command = "dumpsys package " + packageName + " | grep -i granted=";
         String command = "dumpsys package " + packageName;
-        callAsync(command);
+//        callAsync(command);
+        String result = sudoForResult(command);
     }
 
     void callAsync(String... command) {
-        new Startup().setContext(MainActivity.this).setListener(MainActivity.this).execute(command);
+        new Startup(this).execute(command);
     }
 
     List<String> getGrantedPermissions(final String appPackage) {
@@ -376,5 +379,73 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
         } catch (Exception e) {
         }
         return granted;
+    }
+
+    public static String sudoForResult(String...strings) {
+        String res = "";
+        DataOutputStream outputStream = null;
+        InputStream response = null;
+        try{
+            Process su = Runtime.getRuntime().exec("su");
+            outputStream = new DataOutputStream(su.getOutputStream());
+            response = su.getInputStream();
+
+            for (String s : strings) {
+                outputStream.writeBytes(s+"\n");
+                outputStream.flush();
+            }
+
+            outputStream.writeBytes("exit\n");
+            outputStream.flush();
+            try {
+                su.waitFor();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            res = readFully(response);
+        } catch (IOException e){
+            e.printStackTrace();
+        } finally {
+            Closer.closeSilently(outputStream, response);
+        }
+        return res;
+    }
+    public static String readFully(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int length = 0;
+        while ((length = is.read(buffer)) != -1) {
+            baos.write(buffer, 0, length);
+        }
+        return baos.toString("UTF-8");
+    }
+
+
+}
+
+class Closer {
+    public static String TAG = Closer.class.getSimpleName();
+    // closeAll()
+    public static void closeSilently(Object... xs) {
+        // Note: on Android API levels prior to 19 Socket does not implement Closeable
+        for (Object x : xs) {
+            if (x != null) {
+                try {
+                    Log.d(TAG,"closing: "+x);
+                    if (x instanceof Closeable) {
+                        ((Closeable)x).close();
+                    } else if (x instanceof Socket) {
+                        ((Socket)x).close();
+                    } else if (x instanceof DatagramSocket) {
+                        ((DatagramSocket)x).close();
+                    } else {
+                        Log.d(TAG, "cannot close: "+x);
+                        throw new RuntimeException("cannot close "+x);
+                    }
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 }
