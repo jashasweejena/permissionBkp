@@ -125,7 +125,6 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
                 suVersionInternal = Shell.SU.version(true);
                 suResult = Shell.SU.run(new String[]{
                         params[0]
-
                 });
             }
 
@@ -273,7 +272,7 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
 
                 touchHelper.attachToRecyclerView(recyclerView); // Attach ItemTouchHelper to RecyclerView
 
-                getPermsFromPackage(item.name);
+//                getPermsFromP\\ackage(item.name);
                 showPermDialog(null, item.name);
 
 
@@ -305,6 +304,7 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
         final View content = layoutInflater.inflate(R.layout.dialog_layout, null, false);
 
         final TextView permissionText = content.findViewById(R.id.permissionList);
+        permissionText.setMovementMethod(new ScrollingMovementMethod());
 
         String permText = "";
 
@@ -319,7 +319,7 @@ public class MainActivity extends AppCompatActivity implements  ItemTouchCallbac
                 sb.append(x.get(i) + (char) 10);
             }
         }
-        permText = sb.toString();
+        permText = sb.toString() + (char) 10 + x.size();
         permissionText.setText(permText);
         permissionText.setMovementMethod(new ScrollingMovementMethod());
 
